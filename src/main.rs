@@ -1,5 +1,5 @@
 use fucshia_api::{resize_img, security::CheckOrigin};
-use image::ImageFormat;
+use image::{ImageError, ImageFormat};
 
 use actix_multipart::Multipart;
 use actix_web::{
@@ -43,23 +43,24 @@ async fn resize(info: web::Query<Info>, mut payload: Multipart) -> Result<HttpRe
     }
 
     web::block(move || resize_img(&all_data, info.width, info.height, info.frames))
-        .then(|res| {
-            if let Ok(Ok((bytes, fmt))) = res {
-                future::ok(
-                    HttpResponse::build(StatusCode::OK)
-                        .content_type(if fmt == ImageFormat::Gif {
-                            "image/gif"
-                        } else {
-                            "image/png"
-                        })
-                        .body(bytes),
-                )
-            } else {
-                future::ok(
-                    HttpResponse::ServiceUnavailable()
-                        .body("Something went wrong when trying to resize the image, sorry!"),
-                )
-            }
+        .then(|res| match res {
+            Ok(Ok((bytes, fmt))) => future::ok(
+                HttpResponse::build(StatusCode::OK)
+                    .content_type(if fmt == ImageFormat::Gif {
+                        "image/gif"
+                    } else {
+                        "image/png"
+                    })
+                    .body(bytes),
+            ),
+            Ok(Err(ImageError::Unsupported(_))) => future::ok(
+                HttpResponse::ServiceUnavailable()
+                    .body("Only GIF, PNG, JPEG, and WEBP images are supported"),
+            ),
+            _ => future::ok(
+                HttpResponse::ServiceUnavailable()
+                    .body("Something went wrong when trying to resize the image, sorry!"),
+            ),
         })
         .await
 }
