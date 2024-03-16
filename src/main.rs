@@ -1,4 +1,4 @@
-use fucshia_api::{resize_img, security::CheckOrigin};
+use fuchsia_api::{resize_img, security::CheckOrigin};
 use image::{ImageError, ImageFormat};
 
 use actix_multipart::Multipart;
