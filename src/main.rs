@@ -1,4 +1,4 @@
-use fuchsia_api::{resize_img, security::CheckOrigin};
+use fuchsia_api::{circlize_img, resize_img, security::CheckOrigin};
 use image::{ImageError, ImageFormat};
 
 use actix_multipart::Multipart;
@@ -15,32 +15,38 @@ const fn get_default() -> usize {
     250
 }
 
-#[derive(Deserialize)]
-struct Info {
-    width: u32,
-    height: u32,
-    #[serde(default = "get_default")]
-    frames: usize,
-}
-
-#[post("/actions/resize")]
-async fn resize(info: web::Query<Info>, mut payload: Multipart) -> Result<HttpResponse, Error> {
+async fn load_data(buf: &mut Vec<u8>, mut payload: Multipart) -> Option<HttpResponse> {
     let mut size = 0;
-    let mut all_data: Vec<u8> = Vec::new();
     while let Ok(Some(mut field)) = payload.try_next().await {
         while let Some(chunk) = field.next().await {
             let data = chunk.unwrap();
             size += data.len();
-            all_data.extend(data);
+            buf.extend(data);
 
             if size > MAX_SIZE {
-                return Ok(HttpResponse::PayloadTooLarge().body(format!(
+                return Some(HttpResponse::PayloadTooLarge().body(format!(
                     "Cannot upload more than {} bytes at once",
                     MAX_SIZE
                 )));
             }
         }
     }
+    None
+}
+
+#[derive(Deserialize)]
+struct ResizeInfo {
+    width: u32,
+    height: u32,
+    #[serde(default = "get_default")]
+    frames: usize,
+}
+#[post("/actions/resize")]
+async fn resize(info: web::Query<ResizeInfo>, payload: Multipart) -> Result<HttpResponse, Error> {
+    let mut all_data: Vec<u8> = Vec::new();
+    if let Some(resp) = load_data(&mut all_data, payload).await {
+        return Ok(resp);
+    };
 
     web::block(move || resize_img(&all_data, info.width, info.height, info.frames))
         .then(|res| match res {
@@ -57,6 +63,38 @@ async fn resize(info: web::Query<Info>, mut payload: Multipart) -> Result<HttpRe
                 HttpResponse::ServiceUnavailable()
                     .body("Only GIF, PNG, JPEG, and WEBP images are supported"),
             ),
+            _ => future::ok(
+                HttpResponse::ServiceUnavailable()
+                    .body("Something went wrong when trying to resize the image, sorry!"),
+            ),
+        })
+        .await
+}
+
+#[derive(Deserialize)]
+struct CirclizeInfo {
+    dim: u32,
+}
+#[post("/actions/circlize")]
+async fn circlize(
+    info: web::Query<CirclizeInfo>,
+    payload: Multipart,
+) -> Result<HttpResponse, Error> {
+    let mut all_data: Vec<u8> = Vec::new();
+    if let Some(resp) = load_data(&mut all_data, payload).await {
+        return Ok(resp);
+    };
+
+    web::block(move || circlize_img(&all_data, info.dim))
+        .then(|res| match res {
+            Ok(Ok(bytes)) => future::ok(
+                HttpResponse::build(StatusCode::OK)
+                    .content_type("image/png")
+                    .body(bytes),
+            ),
+            Ok(Err(ImageError::Unsupported(_))) => {
+                future::ok(HttpResponse::ServiceUnavailable().body("Only PNG images are supported"))
+            }
             _ => future::ok(
                 HttpResponse::ServiceUnavailable()
                     .body("Something went wrong when trying to resize the image, sorry!"),
@@ -87,6 +125,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(CheckOrigin::new(h))
             .wrap(middleware::Logger::default())
             .service(resize)
+            .service(circlize)
     })
     .bind(format!("{}:{}", &host, &port))?
     .run()
