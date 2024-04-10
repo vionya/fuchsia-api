@@ -59,31 +59,25 @@ pub fn resize_img(
     Ok((write_buf.into_inner(), fmt))
 }
 
-fn sx(x: i32, mid: i32) -> i32 {
-    if x < mid {
-        -1
-    } else if x > mid {
-        1
-    } else {
-        0
-    }
-}
-
-fn sy(y: i32, mid: i32) -> i32 {
-    if y < mid {
-        1
-    } else if y > mid {
-        -1
-    } else {
-        0
-    }
-}
-
 fn to_cartesian(x: i32, y: i32, width: i32, height: i32) -> (i32, i32) {
     let (w_mid, h_mid) = (width / 2, height / 2);
     (
-        sx(x, w_mid) * (x - w_mid).abs(),
-        sy(y, h_mid) * (y - h_mid).abs(),
+        // calculate sign for x coord
+        (if x < w_mid {
+            -1
+        } else if x > w_mid {
+            1
+        } else {
+            0
+        }) * (x - w_mid).abs(), // multiply sign by distance from origin
+        // calculate sign for y coord
+        (if y < h_mid {
+            1
+        } else if y > h_mid {
+            -1
+        } else {
+            0
+        }) * (y - h_mid).abs(), // multiply sign by distance from origin
     )
 }
 
