@@ -63,21 +63,9 @@ fn to_cartesian(x: i32, y: i32, width: i32, height: i32) -> (i32, i32) {
     let (w_mid, h_mid) = (width / 2, height / 2);
     (
         // calculate sign for x coord
-        (if x < w_mid {
-            -1
-        } else if x > w_mid {
-            1
-        } else {
-            0
-        }) * (x - w_mid).abs(), // multiply sign by distance from origin
+        (x - w_mid).signum() * (x - w_mid).abs(), // multiply sign by distance from origin
         // calculate sign for y coord
-        (if y < h_mid {
-            1
-        } else if y > h_mid {
-            -1
-        } else {
-            0
-        }) * (y - h_mid).abs(), // multiply sign by distance from origin
+        (h_mid - y).signum() * (y - h_mid).abs(), // multiply sign by distance from origin
     )
 }
 
