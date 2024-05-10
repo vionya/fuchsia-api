@@ -25,22 +25,21 @@ pub fn resize_img(
     height: u32,
     frames: usize,
     keep_aspect: bool,
-) -> ImageResult<(Vec<u8>, ImageFormat)> {
+) -> ImageResult<(Vec<u8>, ImageFormat, (u32, u32))> {
     let cursor = Cursor::new(buf);
     let out: Vec<u8> = Vec::new();
     let mut write_buf = Cursor::new(out);
     let fmt = guess_format(buf)?;
+    let (mut width, mut height) = (width, height);
 
     if fmt == ImageFormat::Gif {
         let mut decoder = GifDecoder::new(cursor)?;
         let mut limits = Limits::default();
         limits.free(512 * 1024);
         decoder.set_limits(limits)?;
-        let (width, height) = if keep_aspect {
-            scale_dims(decoder.dimensions(), width.max(height))
-        } else {
-            (width, height)
-        };
+        if keep_aspect {
+            (width, height) = scale_dims(decoder.dimensions(), width.max(height))
+        }
 
         let frames: Vec<Frame> = decoder
             .into_frames()
@@ -67,16 +66,14 @@ pub fn resize_img(
     } else {
         let reader = Reader::new(cursor).with_guessed_format()?;
         let img = reader.decode()?;
-        let (width, height) = if keep_aspect {
-            scale_dims(img.dimensions(), width.max(height))
-        } else {
-            (width, height)
-        };
+        if keep_aspect {
+            (width, height) = scale_dims(img.dimensions(), width.max(height))
+        }
         let resized = resize(&img, width, height, FilterType::Nearest);
         resized.write_to(&mut write_buf, ImageFormat::Png)?;
     }
 
-    Ok((write_buf.into_inner(), fmt))
+    Ok((write_buf.into_inner(), fmt, (width, height)))
 }
 
 fn to_cartesian(x: i32, y: i32, width: i32, height: i32) -> (i32, i32) {
