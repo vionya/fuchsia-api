@@ -11,10 +11,6 @@ use serde::Deserialize;
 
 const MAX_SIZE: usize = 2_000_000;
 
-const fn get_default() -> usize {
-    250
-}
-
 async fn load_data(buf: &mut Vec<u8>, mut payload: Multipart) -> Option<HttpResponse> {
     let mut size = 0;
     while let Ok(Some(mut field)) = payload.try_next().await {
@@ -34,12 +30,22 @@ async fn load_data(buf: &mut Vec<u8>, mut payload: Multipart) -> Option<HttpResp
     None
 }
 
+const fn get_frames_default() -> usize {
+    250
+}
+
+const fn get_aspect_default() -> bool {
+    false
+}
+
 #[derive(Deserialize)]
 struct ResizeInfo {
     width: u32,
     height: u32,
-    #[serde(default = "get_default")]
+    #[serde(default = "get_frames_default")]
     frames: usize,
+    #[serde(default = "get_aspect_default")]
+    keep_aspect: bool,
 }
 #[post("/actions/resize")]
 async fn resize(info: web::Query<ResizeInfo>, payload: Multipart) -> Result<HttpResponse, Error> {
@@ -48,27 +54,35 @@ async fn resize(info: web::Query<ResizeInfo>, payload: Multipart) -> Result<Http
         return Ok(resp);
     };
 
-    web::block(move || resize_img(&all_data, info.width, info.height, info.frames))
-        .then(|res| match res {
-            Ok(Ok((bytes, fmt))) => future::ok(
-                HttpResponse::build(StatusCode::OK)
-                    .content_type(if fmt == ImageFormat::Gif {
-                        "image/gif"
-                    } else {
-                        "image/png"
-                    })
-                    .body(bytes),
-            ),
-            Ok(Err(ImageError::Unsupported(_))) => future::ok(
-                HttpResponse::ServiceUnavailable()
-                    .body("Only GIF, PNG, JPEG, and WEBP images are supported"),
-            ),
-            _ => future::ok(
-                HttpResponse::ServiceUnavailable()
-                    .body("Something went wrong when trying to resize the image, sorry!"),
-            ),
-        })
-        .await
+    web::block(move || {
+        resize_img(
+            &all_data,
+            info.width,
+            info.height,
+            info.frames,
+            info.keep_aspect,
+        )
+    })
+    .then(|res| match res {
+        Ok(Ok((bytes, fmt))) => future::ok(
+            HttpResponse::build(StatusCode::OK)
+                .content_type(if fmt == ImageFormat::Gif {
+                    "image/gif"
+                } else {
+                    "image/png"
+                })
+                .body(bytes),
+        ),
+        Ok(Err(ImageError::Unsupported(_))) => future::ok(
+            HttpResponse::ServiceUnavailable()
+                .body("Only GIF, PNG, JPEG, and WEBP images are supported"),
+        ),
+        _ => future::ok(
+            HttpResponse::ServiceUnavailable()
+                .body("Something went wrong when trying to resize the image, sorry!"),
+        ),
+    })
+    .await
 }
 
 #[derive(Deserialize)]

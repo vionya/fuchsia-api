@@ -5,16 +5,26 @@ use image::{
     guess_format,
     imageops::{resize, FilterType},
     io::{Limits, Reader},
-    AnimationDecoder, Frame, ImageDecoder, ImageFormat, ImageResult, Pixel,
+    AnimationDecoder, Frame, GenericImageView, ImageDecoder, ImageFormat, ImageResult, Pixel,
 };
 
 pub mod security;
+
+fn scale_dims((width, height): (u32, u32), new_largest_dim: u32) -> (u32, u32) {
+    let (width, height) = (width as f32, height as f32);
+    let ratio = (new_largest_dim as f32) / width.max(height);
+    (
+        (ratio * width).floor() as u32,
+        (ratio * height).floor() as u32,
+    )
+}
 
 pub fn resize_img(
     buf: &[u8],
     width: u32,
     height: u32,
     frames: usize,
+    keep_aspect: bool,
 ) -> ImageResult<(Vec<u8>, ImageFormat)> {
     let cursor = Cursor::new(buf);
     let out: Vec<u8> = Vec::new();
@@ -26,6 +36,11 @@ pub fn resize_img(
         let mut limits = Limits::default();
         limits.free(512 * 1024);
         decoder.set_limits(limits)?;
+        let (width, height) = if keep_aspect {
+            scale_dims(decoder.dimensions(), width.max(height))
+        } else {
+            (width, height)
+        };
 
         let frames: Vec<Frame> = decoder
             .into_frames()
@@ -52,6 +67,11 @@ pub fn resize_img(
     } else {
         let reader = Reader::new(cursor).with_guessed_format()?;
         let img = reader.decode()?;
+        let (width, height) = if keep_aspect {
+            scale_dims(img.dimensions(), width.max(height))
+        } else {
+            (width, height)
+        };
         let resized = resize(&img, width, height, FilterType::Nearest);
         resized.write_to(&mut write_buf, ImageFormat::Png)?;
     }
