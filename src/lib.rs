@@ -73,6 +73,7 @@ pub fn circlize_img(buf: &[u8], dim: u32) -> ImageResult<Vec<u8>> {
     let out: Vec<u8> = Vec::new();
     let mut write_buf = Cursor::new(out);
 
+    // resize image to the correct dimensions
     let mut img = resize(
         &image::load_from_memory_with_format(buf, ImageFormat::Png)?.into_rgba8(),
         dim,
@@ -82,9 +83,12 @@ pub fn circlize_img(buf: &[u8], dim: u32) -> ImageResult<Vec<u8>> {
     let (w, h) = (dim as i32, dim as i32);
     let radius = dim / 2;
     for (x, y, px) in img.enumerate_pixels_mut().into_iter() {
+        // convert the coordinates to cartesian
         let (x_cart, y_cart) = to_cartesian(x as i32, y as i32, w, h);
 
+        // determine if the current pixel lies outside of the circle
         if ((x_cart.pow(2) + y_cart.pow(2)) as f32).sqrt() > (radius as f32) {
+            // if it does, make it transparent
             px.apply(|_| 0);
         }
     }
