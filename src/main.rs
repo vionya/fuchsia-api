@@ -90,6 +90,8 @@ async fn resize(info: web::Query<ResizeInfo>, payload: Multipart) -> Result<Http
 #[derive(Deserialize)]
 struct CirclizeInfo {
     dim: u32,
+    #[serde(default = "get_frames_default")]
+    frames: usize,
 }
 #[post("/actions/circlize")]
 async fn circlize(
@@ -101,16 +103,21 @@ async fn circlize(
         return Ok(resp);
     };
 
-    web::block(move || circlize_img(&all_data, info.dim))
+    web::block(move || circlize_img(&all_data, info.dim, info.frames))
         .then(|res| match res {
-            Ok(Ok(bytes)) => future::ok(
+            Ok(Ok((bytes, fmt, _))) => future::ok(
                 HttpResponse::build(StatusCode::OK)
-                    .content_type("image/png")
+                    .content_type(if fmt == ImageFormat::Gif {
+                        "image/gif"
+                    } else {
+                        "image/png"
+                    })
                     .body(bytes),
             ),
-            Ok(Err(ImageError::Unsupported(_))) => {
-                future::ok(HttpResponse::ServiceUnavailable().body("Only PNG images are supported"))
-            }
+            Ok(Err(ImageError::Unsupported(_))) => future::ok(
+                HttpResponse::ServiceUnavailable()
+                    .body("Only GIF, PNG, JPEG, and WEBP images are supported"),
+            ),
             _ => future::ok(
                 HttpResponse::ServiceUnavailable()
                     .body("Something went wrong when trying to resize the image, sorry!"),
