@@ -9,7 +9,7 @@ use actix_web::{
 use futures::{future, FutureExt, StreamExt, TryStreamExt};
 use serde::Deserialize;
 
-const MAX_SIZE: usize = 2_000_000;
+const MAX_SIZE: usize = 5_000_000;
 
 async fn load_data(buf: &mut Vec<u8>, mut payload: Multipart) -> Option<HttpResponse> {
     let mut size = 0;
