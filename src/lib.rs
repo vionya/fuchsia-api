@@ -2,6 +2,7 @@ use image::{
     imageops::{resize, FilterType},
     ImageBuffer, ImageFormat, ImageResult, Pixel, Rgba,
 };
+use rayon::prelude::*;
 
 pub(crate) mod editor;
 pub mod security;
@@ -44,20 +45,20 @@ fn to_cartesian(x: i32, y: i32, width: i32, height: i32) -> (i32, i32) {
     )
 }
 
-#[inline]
 fn circlize_frame(img: &mut ImageBuffer<Rgba<u8>, Vec<u8>>, dim: u32) {
     let (w, h) = (dim as i32, dim as i32);
-    let radius = dim / 2;
-    for (x, y, px) in img.enumerate_pixels_mut().into_iter() {
-        // convert the coordinates to cartesian
-        let (x_cart, y_cart) = to_cartesian(x as i32, y as i32, w, h);
+    let radius = (dim / 2) as f32;
+    img.enumerate_pixels_mut()
+        .par_bridge()
+        .for_each(|(x, y, px)| {
+            let (x_cart, y_cart) = to_cartesian(x as i32, y as i32, w, h);
 
-        // determine if the current pixel lies outside of the circle
-        if ((x_cart.pow(2) + y_cart.pow(2)) as f32).sqrt() > (radius as f32) {
-            // if it does, make it transparent
-            px.apply(|_| 0);
-        }
-    }
+            // determine if the current pixel lies outside of the circle
+            if ((x_cart.pow(2) + y_cart.pow(2)) as f32).sqrt() > (radius as f32) {
+                // if it does, make it transparent
+                px.apply(|_| 0);
+            }
+        });
 }
 
 pub fn circlize_img(
