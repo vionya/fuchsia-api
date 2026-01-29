@@ -66,10 +66,10 @@ async fn resize(info: web::Query<ResizeInfo>, payload: Multipart) -> Result<Http
     .then(|res| match res {
         Ok(Ok((bytes, fmt, (width, height)))) => future::ok(
             HttpResponse::build(StatusCode::OK)
-                .content_type(if fmt == ImageFormat::Gif {
-                    "image/gif"
-                } else {
-                    "image/png"
+                .content_type(match fmt {
+                    ImageFormat::Gif => "image/gif",
+                    ImageFormat::WebP => "image/webp",
+                    _ => "image/png"
                 })
                 .append_header(("X-Width", width))
                 .append_header(("X-Height", height))
@@ -128,7 +128,7 @@ async fn circlize(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    unsafe { std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info"); }
     env_logger::init();
 
     let host = std::env::args()

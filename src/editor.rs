@@ -1,12 +1,15 @@
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 
 use image::{
-    codecs::gif::{GifDecoder, GifEncoder, Repeat},
-    error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
-    guess_format,
-    io::{Limits, Reader},
-    AnimationDecoder, Frame, ImageBuffer, ImageDecoder, ImageError, ImageFormat, ImageResult, Rgba,
+    codecs::{
+        gif::{GifDecoder, GifEncoder, Repeat},
+        webp::WebPDecoder,
+    },
+    error::{EncodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
+    guess_format, AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError,
+    ImageFormat, ImageReader as Reader, ImageResult, Limits, Rgba,
 };
+use webp::{AnimEncoder, AnimFrame, WebPConfig};
 
 type RgbaImg = ImageBuffer<Rgba<u8>, Vec<u8>>;
 
@@ -65,7 +68,44 @@ where
         }
         let mut new_dimensions: Option<(u32, u32)> = None;
 
-        if fmt == ImageFormat::Gif {
+        if fmt == ImageFormat::WebP {
+            let mut decoder = WebPDecoder::new(cursor)?;
+            let mut limits = Limits::default();
+            limits.free(512 * 1024);
+            decoder.set_limits(limits)?;
+
+            let frames: Vec<DynamicImage> = decoder
+                .into_frames()
+                .take(self.frame_limit)
+                .take_while(Result::is_ok)
+                .map(|ele| {
+                    // no need to worry about panic since we're only
+                    // mapping over Ok items
+                    let mut frame = ele.unwrap();
+                    let buffer = frame.buffer_mut();
+                    let processed_buffer = processor(buffer);
+                    if new_dimensions.is_none() {
+                        new_dimensions = Some(processed_buffer.dimensions());
+                    }
+                    DynamicImage::from(processed_buffer)
+                })
+                .collect();
+
+            let err =
+                ImageError::Encoding(EncodingError::from_format_hint(ImageFormatHint::Exact(fmt)));
+            let (w, h) = new_dimensions.unwrap_or_else(|| (256, 256));
+            let Ok(config) = WebPConfig::new() else {
+                return Err(err);
+            };
+            let mut encoder = AnimEncoder::new(w, h, &config);
+            frames.iter().for_each(|frame| {
+                let Ok(anim_frame) = AnimFrame::from_image(frame, 0) else {
+                    return;
+                };
+                encoder.add_frame(anim_frame)
+            });
+            self.write_buf.write(&encoder.encode())?;
+        } else if fmt == ImageFormat::Gif {
             let mut decoder = GifDecoder::new(cursor)?;
             let mut limits = Limits::default();
             limits.free(512 * 1024);

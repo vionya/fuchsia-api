@@ -3,4 +3,5 @@ Cargo.lock
 
 *.gif
 *.png
+*.webp
 *.txt
