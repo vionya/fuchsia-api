@@ -6,8 +6,10 @@ use image::{
         webp::WebPDecoder,
     },
     error::{EncodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
-    guess_format, AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError,
-    ImageFormat, ImageReader as Reader, ImageResult, Limits, Rgba,
+    guess_format,
+    io::{Limits, Reader},
+    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError, ImageFormat,
+    ImageResult, Rgba,
 };
 use webp::{AnimEncoder, AnimFrame, WebPConfig};
 
