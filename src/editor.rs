@@ -5,8 +5,8 @@ use image::{
     error::{EncodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
     guess_format,
     io::{Limits, Reader},
-    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError,
-    ImageFormat, ImageResult, Rgba,
+    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError, ImageFormat,
+    ImageResult, Rgba,
 };
 use webp::{AnimDecoder, AnimEncoder, AnimFrame, WebPConfig};
 
@@ -75,15 +75,13 @@ where
             let Ok(decoded) = decoder.decode() else {
                 return Err(err);
             };
-            let Some(original_frames) = decoded.get_frames(0..(decoded.len())) else {
-                return Err(err);
-            };
 
-            let frames: Vec<(DynamicImage, i32)> = original_frames
-                .iter()
-                .take(self.frame_limit)
-                .map(|frame| {
-                    let dynimage = DynamicImage::from(frame);
+            let frames: Vec<(DynamicImage, i32)> = (0..(self.frame_limit.min(decoded.len())))
+                .map(|i| {
+                    let Some(frame) = decoded.get_frame(i) else {
+                        return (DynamicImage::new_rgb8(0, 0), 0);
+                    };
+                    let dynimage = DynamicImage::from(&frame);
                     let processed_buffer = processor(&mut dynimage.to_rgba8());
                     if new_dimensions.is_none() {
                         new_dimensions = Some(processed_buffer.dimensions());
