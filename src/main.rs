@@ -7,7 +7,6 @@ use actix_web::{
     middleware, post, web, App, HttpResponse, HttpServer,
 };
 use futures::{future, FutureExt, StreamExt, TryStreamExt};
-use log::info;
 use serde::Deserialize;
 
 const MAX_SIZE: usize = 5_000_000;
