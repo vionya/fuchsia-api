@@ -7,6 +7,7 @@ use actix_web::{
     middleware, post, web, App, HttpResponse, HttpServer,
 };
 use futures::{future, FutureExt, StreamExt, TryStreamExt};
+use log::info;
 use serde::Deserialize;
 
 const MAX_SIZE: usize = 5_000_000;
@@ -128,7 +129,7 @@ async fn circlize(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    unsafe { std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info"); }
+    unsafe { std::env::set_var("RUST_LOG", "info"); }
     env_logger::init();
 
     let host = std::env::args()
