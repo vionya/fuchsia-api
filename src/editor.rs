@@ -1,16 +1,13 @@
 use std::io::{Cursor, Write};
 
 use image::{
-    codecs::
-        gif::{GifDecoder, GifEncoder, Repeat}
-    ,
+    codecs::gif::{GifDecoder, GifEncoder, Repeat},
     error::{EncodingError, ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
     guess_format,
     io::{Limits, Reader},
-    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError, ImageFormat,
-    ImageResult, Rgba, RgbaImage,
+    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageDecoder, ImageError,
+    ImageFormat, ImageResult, Rgba,
 };
-use log::info;
 use webp::{AnimDecoder, AnimEncoder, AnimFrame, WebPConfig};
 
 type RgbaImg = ImageBuffer<Rgba<u8>, Vec<u8>>;
@@ -82,44 +79,31 @@ where
                 return Err(err);
             };
 
-            let frames: Vec<DynamicImage> = original_frames
+            let frames: Vec<(DynamicImage, i32)> = original_frames
                 .iter()
                 .take(self.frame_limit)
                 .map(|frame| {
-                    // no need to worry about panic since we're only
-                    // mapping over Ok items
-                    // let mut frame = ele.unwrap();
-                    let mut buffer = RgbaImage::from_raw(
-                        frame.width(),
-                        frame.height(),
-                        frame.get_image().to_vec(),
-                    )
-                    .expect("surely this wont happen");
-                    let processed_buffer = processor(&mut buffer);
+                    let dynimage = DynamicImage::from(frame);
+                    let processed_buffer = processor(&mut dynimage.to_rgba8());
                     if new_dimensions.is_none() {
                         new_dimensions = Some(processed_buffer.dimensions());
                     }
-                    DynamicImage::from(processed_buffer)
+                    (DynamicImage::from(processed_buffer), frame.get_time_ms())
                 })
                 .collect();
 
-            let err =
-                ImageError::Encoding(EncodingError::from_format_hint(ImageFormatHint::Exact(fmt)));
-            let (w, h) = new_dimensions.unwrap_or_else(|| (256, 256));
-            let Ok(config) = WebPConfig::new() else {
+            let Ok(mut config) = WebPConfig::new() else {
                 return Err(err);
             };
+            config.lossless = 0;
+            config.quality = 75f32;
+            config.method = 4;
+            let (w, h) = new_dimensions.unwrap_or_else(|| (256, 256));
             let mut encoder = AnimEncoder::new(w, h, &config);
-            info!("{} frames in frames vec", frames.len());
-            frames.iter().enumerate().for_each(|(i, frame)| {
-                let Ok(anim_frame) = AnimFrame::from_image(frame, i as i32) else {
-                    return;
-                };
-                encoder.add_frame(anim_frame)
-            });
-            info!("all frames added");
+            for (frame, timestamp) in frames.iter() {
+                encoder.add_frame(AnimFrame::from_image(frame, *timestamp).unwrap());
+            }
             self.write_buf.write(&encoder.encode())?;
-            info!("encoding should be done");
         } else if fmt == ImageFormat::Gif {
             let mut decoder = GifDecoder::new(cursor)?;
             let mut limits = Limits::default();
